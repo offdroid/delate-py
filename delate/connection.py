@@ -18,10 +18,7 @@ class Connection:
         self._remote_subs = set()
 
         self.connected = asyncio.Event()
-
-        loop = asyncio.get_event_loop()
-        loop.create_task(self.ping())
-        loop.create_task(self.recv())
+        self.tasks = []
 
     async def __aenter__(self):
         return await self.connect()
@@ -31,35 +28,51 @@ class Connection:
 
     async def connect(self):
         self.ws = await websockets.connect(ENDPOINT_URL)
+
+        loop = asyncio.get_event_loop()
+        self.tasks = [loop.create_task(self.ping()),
+                      loop.create_task(self.recv())]
+
         self.connected.set()
         return self
 
     async def close(self):
-        self.ws.close()
         self.connected.clear()
+        await self.ws.close()
+
+        for task in self.tasks:
+            task.cancel()
+
+    async def wait_closed(self):
+        await self.ws.wait_closed()
 
     async def ping(self):
-        await self.connected.wait()
         while True:
-            await asyncio.sleep(5)
-            await self.send("PING")
+            await self.connected.wait()
+            while not self.ws.closed:
+                await asyncio.sleep(1)
+                await self.send("PING")
 
     async def recv(self):
         while True:
             await self.connected.wait()
-            async for message_str in self.ws:
-                message = Message(message_str)
+            try:
+                async for message_str in self.ws:
+                    message = Message(message_str)
 
-                for source in {message.source, None}:
-                    channel = self._get_channel_queue(source, create=False)
-                    if channel is not None:
-                        for queue in channel:
-                            queue.put_nowait(message)
+                    for source in {message.source, None}:
+                        channel = self._get_channel_queue(source, create=False)
+                        if channel is not None:
+                            for queue in channel:
+                                queue.put_nowait(message)
+            except websockets.exceptions.ConnectionClosed as e:
+                await self.close()
 
     async def send(self, message):
-        if self.ws.open:
+        try:
             await self.ws.send(message)
-            print("sent: " + message)
+        except websockets.exceptions.ConnectionClosed as e:
+            await self.close()
 
     async def subscribe_queue(self, queue, channels=None):
         for channel in self._get_channel_defs(channels):
@@ -118,5 +131,15 @@ class Subscription:
         return self
 
     async def __anext__(self):
-        return await self.queue.get()
+        get_task = asyncio.ensure_future(self.queue.get())
+        err_task = asyncio.ensure_future(self.connection.wait_closed())
+
+        done, pending = await asyncio.wait([get_task, err_task], return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+
+        if err_task in done:
+            raise StopAsyncIteration
+        else:
+            return get_task.result()
 

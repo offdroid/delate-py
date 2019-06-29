@@ -1,18 +1,26 @@
+import socket
+
 import asyncio
 from delate import connection
 
 
 async def main():
-    async with connection.Connection() as c:
-        print("connected")
+    while True:
+        try:
+            async with connection.Connection() as c:
+                print("connected")
 
-        async with connection.Subscription(c, "timetable_8000261") as s:
-            i = 0
-            async for m in s:
-                print(m.raw_str)
-                i += 1
-                if i > 5:
-                    break  # unsubscribes
+                async with connection.Subscription(c, ["timetable_8000261"]) as s:
+                    async for m in s:
+                        print(m.raw_str)
+                        await c.close()
+        except socket.gaierror as e:
+            print(f"Connection failed: {e}")
+
+        print("Restarting ...")
+        await asyncio.sleep(5)
+
+    asyncio.get_event_loop().stop()
 
 
 asyncio.get_event_loop().create_task(main())

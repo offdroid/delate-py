@@ -50,7 +50,7 @@ class Connection:
         while True:
             await self.connected.wait()
             while not self.ws.closed:
-                await asyncio.sleep(1)
+                await asyncio.sleep(10)
                 await self.send("PING")
 
     async def recv(self):
@@ -74,10 +74,10 @@ class Connection:
         except websockets.exceptions.ConnectionClosed as e:
             await self.close()
 
-    async def subscribe_queue(self, queue, channels=None):
+    async def subscribe_queue(self, queue, channels=None, get=False):
         for channel in self._get_channel_defs(channels):
             self._get_channel_queue(channel).append(queue)
-            await self._subscribe_remote(channel)
+            await self._subscribe_remote(channel, get)
 
     async def unsubscribe_queue(self, queue):
         for channel, channel_queues in self.subs.items():
@@ -101,8 +101,10 @@ class Connection:
                 return None
         return self.subs[channel]
 
-    async def _subscribe_remote(self, channel):
+    async def _subscribe_remote(self, channel, get=False):
         if channel is not None and channel not in self._remote_subs:
+            if get:
+                await self.send(f"GET {channel}")
             await self.send(f"SUB {channel}")
             self._remote_subs.add(channel)
 
@@ -114,14 +116,15 @@ class Connection:
 
 class Subscription:
     """ An iterator wrapped over one or more subscription queue """
-    def __init__(self, connection, channels):
+    def __init__(self, connection, channels, get=False):
         self.connection = connection
         self.channels = channels
+        self.get = get
 
         self.queue = asyncio.Queue()
 
     async def __aenter__(self):
-        await self.connection.subscribe_queue(self.queue, self.channels)
+        await self.connection.subscribe_queue(self.queue, self.channels, self.get)
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
@@ -143,3 +146,6 @@ class Subscription:
         else:
             return get_task.result()
 
+    async def aclose(self):
+        print("aclose")
+        await self.connection.unsubscribe_queue(self.queue)

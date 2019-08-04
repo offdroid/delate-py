@@ -30,7 +30,7 @@ STATIONS = [
     {'db_id': 8004132, 'mvg_id': 7242, 'alias': 'MKA',   'lat': 48.416444, 'lon': 11.391664, 'name': 'Stachus',                      'lines': [1, 2, 3, 4, 6, 7, 8,   ]},
     {'db_id': 8004135, 'mvg_id':    2, 'alias': 'MMP',   'lat': 48.137270, 'lon': 11.575757, 'name': 'Marienplatz',                  'lines': [1, 2, 3, 4, 6, 7, 8,   ]},
     {'db_id': 8004131, 'mvg_id':    3, 'alias': 'MIT',   'lat': 48.134003, 'lon': 11.583205, 'name': 'Isartor',                      'lines': [1, 2, 3, 4, 6, 7, 8,   ]},
-    {'db_id': 8004136, 'mvg_id':    4, 'alias': 'MIT',   'lat': 48.128587, 'lon': 11.593889, 'name': 'Rosenheimer Platz',            'lines': [1, 2, 3, 4, 6, 7, 8,   ]},
+    {'db_id': 8004136, 'mvg_id':    4, 'alias': 'MRP',   'lat': 48.128587, 'lon': 11.593889, 'name': 'Rosenheimer Platz',            'lines': [1, 2, 3, 4, 6, 7, 8,   ]},
     {'db_id': 8000262, 'mvg_id':    5, 'alias': 'MOP',   'lat': 48.128014, 'lon': 11.604003, 'name': 'Ostbahnhof',                   'lines': [1, 2, 3, 4, 6, 7, 8,   ]},
     {'db_id': 8004138, 'mvg_id': 1100, 'alias': 'MMAR',  'lat': 48.118540, 'lon': 11.595822, 'name': 'St.-Martin-Str.',              'lines': [      3,       7,      ]},
     {'db_id': 8004148, 'mvg_id': 1110, 'alias': 'MGI',   'lat': 48.110710, 'lon': 11.594892, 'name': 'Giesing',                      'lines': [      3,       7,      ]},

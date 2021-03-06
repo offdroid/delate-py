@@ -1,14 +1,15 @@
 import asyncio
+import logging
+
 import websockets
 
 from delate.message import Message
-
 
 ENDPOINT_URL = "wss://tralis.sbahnm.geops.de/ws"
 
 
 class Connection:
-    """ A (stateful) connection to the Redis WebSocket API """
+    """A (stateful) connection to the Redis WebSocket API."""
 
     def __init__(self):
         self.ws = None
@@ -30,8 +31,7 @@ class Connection:
         self.ws = await websockets.connect(ENDPOINT_URL)
 
         loop = asyncio.get_event_loop()
-        self.tasks = [loop.create_task(self.ping()),
-                      loop.create_task(self.recv())]
+        self.tasks = [loop.create_task(self.ping()), loop.create_task(self.recv())]
 
         self.connected.set()
         return self
@@ -58,13 +58,16 @@ class Connection:
             await self.connected.wait()
             try:
                 async for message_str in self.ws:
-                    message = Message(message_str)
+                    if isinstance(message_str, str):
+                        message = Message(message_str)
 
-                    for source in {message.source, None}:
-                        channel = self._get_channel_queue(source, create=False)
-                        if channel is not None:
-                            for queue in channel:
-                                queue.put_nowait(message)
+                        for source in {message.source, None}:
+                            channel = self._get_channel_queue(source, create=False)
+                            if channel is not None:
+                                for queue in channel:
+                                    queue.put_nowait(message)
+                    else:
+                        logging.warning("Unsupported binary message received")
             except websockets.exceptions.ConnectionClosed as e:
                 await self.close()
 
@@ -115,7 +118,8 @@ class Connection:
 
 
 class Subscription:
-    """ An iterator wrapped over one or more subscription queue """
+    """An iterator wrapped over one or more subscription queue."""
+
     def __init__(self, connection, channels, get=False):
         self.connection = connection
         self.channels = channels
@@ -130,22 +134,22 @@ class Subscription:
     async def __aexit__(self, exc_type, exc_value, traceback):
         await self.connection.unsubscribe_queue(self.queue)
 
-    async def __aiter__(self):
+    def __aiter__(self):
         return self
 
     async def __anext__(self):
         get_task = asyncio.ensure_future(self.queue.get())
         err_task = asyncio.ensure_future(self.connection.wait_closed())
 
-        done, pending = await asyncio.wait([get_task, err_task], return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(
+            [get_task, err_task], return_when=asyncio.FIRST_COMPLETED
+        )
         for task in pending:
             task.cancel()
 
         if err_task in done:
             raise StopAsyncIteration
-        else:
-            return get_task.result()
+        return get_task.result()
 
-    async def aclose(self):
-        print("aclose")
-        await self.connection.unsubscribe_queue(self.queue)
+    def __aclose__(self):
+        self.connection.unsubscribe_queue(self.queue).__await__()
